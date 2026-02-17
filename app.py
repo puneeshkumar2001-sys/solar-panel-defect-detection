@@ -1,50 +1,87 @@
 import streamlit as st
-import subprocess
-import sys
-import importlib
+import cv2
+import numpy as np
+from PIL import Image
+from datetime import datetime
 
-st.set_page_config(page_title="Solar Panel Inspector", layout="wide")
+# Page setup
+st.set_page_config(page_title="Solar Panel Checker", page_icon="☀️")
+st.title("☀️ Solar Panel Defect Checker")
+st.write("Upload a solar panel photo to check for defects")
 
-st.title("☀️ Solar Panel Defect Detection")
-st.write("Installing packages one by one...")
+# Initialize counters
+if 'total' not in st.session_state:
+    st.session_state.total = 0
+    st.session_state.passed = 0
+    st.session_state.failed = 0
 
-# List of packages to install
-packages = [
-    "numpy==1.23.5",
-    "opencv-python-headless==4.7.0.68",
-    "pandas==1.5.3", 
-    "Pillow==9.4.0",
-    "plotly==5.14.1"
-]
+# Upload photo
+uploaded = st.file_uploader("Choose a solar panel photo", type=['jpg', 'jpeg', 'png'])
 
-# Install each package individually
-for package in packages:
-    package_name = package.split('==')[0]
+if uploaded is not None:
+    # Show original photo
+    image = Image.open(uploaded)
+    st.image(image, caption="Original Photo", use_container_width=True)
     
-    # Create a placeholder for status
-    status = st.empty()
-    status.info(f"📦 Installing {package_name}...")
+    # Convert to format OpenCV can use
+    img_array = np.array(image)
+    if len(img_array.shape) == 3:
+        img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
     
-    try:
-        # Try to import first (check if already installed)
-        importlib.import_module(package_name.replace('-', '_'))
-        status.success(f"✅ {package_name} already installed")
-    except ImportError:
-        # Install the package
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--no-cache-dir", package],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode == 0:
-            status.success(f"✅ {package_name} installed successfully")
+    # Simple defect detection
+    gray = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    
+    # Find edges/defects
+    edges = cv2.Canny(blurred, 50, 150)
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Draw defects on photo
+    result = img_array.copy()
+    defect_count = 0
+    
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area > 100:  # Ignore tiny spots
+            defect_count += 1
+            x, y, w, h = cv2.boundingRect(contour)
+            cv2.rectangle(result, (x, y), (x+w, y+h), (0, 0, 255), 2)
+    
+    # Show result
+    st.subheader("Result")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if defect_count == 0:
+            st.success("✅ PASS - No defects found")
+            st.session_state.passed += 1
         else:
-            status.error(f"❌ {package_name} FAILED to install")
-            st.code(result.stderr)
-            st.stop()  # Stop if any package fails
+            st.error(f"❌ FAIL - Found {defect_count} defect(s)")
+            st.session_state.failed += 1
+    
+    with col2:
+        # Show image with defects circled
+        result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+        st.image(result_rgb, caption="Defects Circled in Red", use_container_width=True)
+    
+    st.session_state.total += 1
 
-st.success("✅ All packages installed!")
-st.write("---")
-st.write("🎉 App is ready! Loading main interface...")
-st.rerun()
+# Show statistics
+st.markdown("---")
+st.subheader("📊 Summary")
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Total Checked", st.session_state.total)
+col2.metric("Passed", st.session_state.passed)
+col3.metric("Failed", st.session_state.failed)
+
+# Reset button
+if st.button("Reset Counters"):
+    st.session_state.total = 0
+    st.session_state.passed = 0
+    st.session_state.failed = 0
+    st.rerun()
+
+st.markdown("---")
+st.caption("Simple Solar Panel Defect Checker - Phase 1")
