@@ -1,30 +1,50 @@
 import streamlit as st
+import subprocess
 import sys
-import traceback
+import importlib
 
-st.set_page_config(page_title="Debug Mode")
-st.title("🔍 Debug Version")
+st.set_page_config(page_title="Solar Panel Inspector", layout="wide")
 
-st.write("Python version:", sys.version)
-st.write("Streamlit version:", st.__version__)
+st.title("☀️ Solar Panel Defect Detection")
+st.write("Installing packages one by one...")
 
-# Try importing each package separately
-packages = {
-    "numpy": "numpy",
-    "OpenCV": "cv2", 
-    "Pandas": "pandas",
-    "PIL": "PIL",
-    "Plotly": "plotly"
-}
+# List of packages to install
+packages = [
+    "numpy==1.23.5",
+    "opencv-python-headless==4.7.0.68",
+    "pandas==1.5.3", 
+    "Pillow==9.4.0",
+    "plotly==5.14.1"
+]
 
-for name, import_name in packages.items():
+# Install each package individually
+for package in packages:
+    package_name = package.split('==')[0]
+    
+    # Create a placeholder for status
+    status = st.empty()
+    status.info(f"📦 Installing {package_name}...")
+    
     try:
-        module = __import__(import_name)
-        version = getattr(module, "__version__", "unknown")
-        st.success(f"✅ {name} {version} loaded")
-    except Exception as e:
-        st.error(f"❌ {name} failed: {str(e)}")
-        st.code(traceback.format_exc())
+        # Try to import first (check if already installed)
+        importlib.import_module(package_name.replace('-', '_'))
+        status.success(f"✅ {package_name} already installed")
+    except ImportError:
+        # Install the package
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--no-cache-dir", package],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            status.success(f"✅ {package_name} installed successfully")
+        else:
+            status.error(f"❌ {package_name} FAILED to install")
+            st.code(result.stderr)
+            st.stop()  # Stop if any package fails
 
+st.success("✅ All packages installed!")
 st.write("---")
-st.write("If you see this, the app is running!")
+st.write("🎉 App is ready! Loading main interface...")
+st.rerun()
