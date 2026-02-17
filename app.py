@@ -1,31 +1,30 @@
 import streamlit as st
-import subprocess
 import sys
+import traceback
 
-# Page setup
-st.set_page_config(page_title="Simple Test")
-st.title("🚀 Streamlit Test App")
+st.set_page_config(page_title="Debug Mode")
+st.title("🔍 Debug Version")
 
-# Try to import numpy
-try:
-    import numpy as np
-    st.success("✅ NumPy is working!")
-except:
-    st.warning("📦 Installing NumPy...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "numpy"])
-    import numpy as np
-    st.success("✅ NumPy installed!")
+st.write("Python version:", sys.version)
+st.write("Streamlit version:", st.__version__)
 
-# Try to import cv2
-try:
-    import cv2
-    st.success("✅ OpenCV is working!")
-except:
-    st.warning("📦 Installing OpenCV...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python-headless"])
-    import cv2
-    st.success("✅ OpenCV installed!")
+# Try importing each package separately
+packages = {
+    "numpy": "numpy",
+    "OpenCV": "cv2", 
+    "Pandas": "pandas",
+    "PIL": "PIL",
+    "Plotly": "plotly"
+}
+
+for name, import_name in packages.items():
+    try:
+        module = __import__(import_name)
+        version = getattr(module, "__version__", "unknown")
+        st.success(f"✅ {name} {version} loaded")
+    except Exception as e:
+        st.error(f"❌ {name} failed: {str(e)}")
+        st.code(traceback.format_exc())
 
 st.write("---")
-st.write("🎉 App is running!")
-st.write(f"Python version: {sys.version}")
+st.write("If you see this, the app is running!")
